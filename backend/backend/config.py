@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -20,6 +21,16 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:5173"]
     max_history_entries: int = 50
+
+    @field_validator("cookies_file", mode="before")
+    @classmethod
+    def _blank_cookies_file_is_unset(cls, value: object) -> object:
+        # An unset `COOKIES_FILE=` in .env arrives as "", which Path() resolves to
+        # Path("."). yt-dlp then tries to read the working directory as a cookie
+        # jar and the download fails. Treat a blank value as "no cookies file".
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     def ensure_dirs(self) -> None:
         for path in (self.models_dir, self.output_dir, self.temp_dir, self.history_file.parent):
